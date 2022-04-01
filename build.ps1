@@ -27,7 +27,10 @@ param(
 	[string] $Suffix,
 
 	[Parameter(Position = 7)]
-	[string] $BuildArches = "win-x86;win-x64;win-arm64"
+	[string] $BuildArches = "win-x86;win-x64;win-arm64",
+	
+	[Parameter(Position = 8)]
+	[string] $FolderSuffix  = ""
 )
 
 Set-StrictMode -version latest
@@ -223,7 +226,6 @@ function Msvs
 		[Parameter(Position = 2, ValueFromPipeline = $true)]
 		[hashtable] $Platform
 	)
-
 	Write-Diagnostic "Targeting $Toolchain using configuration $Configuration on platform ($Platform.ArchLong)"
 
 	$VisualStudioVersion = $null
@@ -305,7 +307,7 @@ function Msvs
 		Pop-Location
 
 		$Arguments = @(
-			"$CefProject",
+			"`"$CefProject`"",
 			"/t:rebuild",
 			"/p:VisualStudioVersion=$VisualStudioVersion",
 			"/p:Configuration=$Configuration",
@@ -440,14 +442,14 @@ function Nupkg
 		# Build packages
 		if ($arch -ne "arm64")
 		{
-			. $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties "Configuration=Release;Platform=$arch;CPlatform=$archLong;" -OutputDirectory nuget
+			. $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties "Configuration=Release;Platform=$arch;CPlatform=$archLong$FolderSuffix;" -OutputDirectory nuget
 		}
 
-		. $Nuget pack nuget\chromiumembeddedframework.runtime.win.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties "Configuration=Release;Platform=$arch;CPlatform=$archLong;" -OutputDirectory nuget
+		. $Nuget pack nuget\chromiumembeddedframework.runtime.win.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties "Configuration=Release;Platform=$arch;CPlatform=$archLong$FolderSuffix;" -OutputDirectory nuget
 	}
 		
 	# Meta Package
-	. $Nuget pack nuget\chromiumembeddedframework.runtime.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties 'Configuration=Release;' -OutputDirectory nuget
+	. $Nuget pack nuget\chromiumembeddedframework.runtime.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties "Configuration=Release;FolderSuffix=$FolderSuffix;" -OutputDirectory nuget
 
 	# Build sdk
 	$Filename = Resolve-Path ".\nuget\cef.sdk.props"
@@ -474,7 +476,6 @@ function ExtractArchive()
 		[Parameter(Position = 2, ValueFromPipeline = $true)]
 		[string] $OutputFolder
 	)
-
 	set-alias sz "$env:ProgramFiles\7-Zip\7z.exe"
 
 	# Extract bzip file
@@ -494,8 +495,7 @@ function ExtractArchive()
 	}
 
 	$Folder = Join-Path $WorkingDir ($CefFileName.Substring(0, $CefFileName.length - ($Extension.Length+1)))
-	Move-Item ($Folder + '\*') $OutputFolder -force
-	Remove-Item $Folder
+	Move-Item $Folder $OutputFolder -force
 }
 
 function DownloadCefBinaryAndUnzip()
@@ -572,7 +572,7 @@ function CopyFromLocalCefBuild()
 
 	$archLong = $Platform.ArchLong
 
-	$CefFileName = "cef_binary_$($CefVersion)_$archLong." + $Extension;
+	$CefFileName = "cef_binary_$($CefVersion)_$archLong$FolderSuffix." + $Extension;
 
 	$LocalFile = Join-Path $WorkingDir $CefFileName
 
@@ -607,15 +607,15 @@ try
 			NativeArch='win32';
 			Arch='x86';
 			ArchLong='windows32';
-			Folder=Join-Path $WorkingDir 'cef_binary_3.y.z_windows32';
+			Folder=Join-Path $WorkingDir "cef_binary_3.y.z_windows32$FolderSuffix";
 		};
 		
 		'win-x64'=@{
 			Enabled=$BuildArches.Contains('win-x64') -or $BuildArches.Contains('x64');
 			NativeArch='x64';
 			Arch='x64';
-			ArchLong='windows64';
-			Folder=Join-Path $WorkingDir 'cef_binary_3.y.z_windows64';
+			ArchLong="windows64";
+			Folder=Join-Path $WorkingDir "cef_binary_3.y.z_windows64$FolderSuffix";
 		};
 		
 		'win-arm64'=@{
@@ -623,7 +623,7 @@ try
 			NativeArch='arm64';
 			Arch='arm64';
 			ArchLong='windowsarm64';
-			Folder=Join-Path $WorkingDir 'cef_binary_3.y.z_windowsarm64';
+			Folder=Join-Path $WorkingDir "cef_binary_3.y.z_windowsarm64$FolderSuffix";
 		};
 	}
 
@@ -644,7 +644,7 @@ try
 				$_.Value.Enabled -eq $true
 			}
 
-			$enabledPlatformFileExtension =  $enabledPlatform[0].Value.ArchLong + '.' + $Extension
+			$enabledPlatformFileExtension =  $enabledPlatform[0].Value.ArchLong + $FolderSuffix + '.' + $Extension
 			
 			#Take the version from the local binary only
 			$name = (Get-ChildItem -Filter cef_binary_*_$enabledPlatformFileExtension $CefBinaryDir)[0].Name;
@@ -695,7 +695,6 @@ try
 	{
 		Remove-Item $CefWorkingFolder -Recurse | Out-Null
 	}
-
 	foreach ($platform in $Platforms.Values)
 	{
 		if(!$platform.Enabled)
@@ -752,7 +751,6 @@ try
 			}
 		}
 	}
-
 	if($Target -eq "nupkg")
 	{
 		Nupkg
