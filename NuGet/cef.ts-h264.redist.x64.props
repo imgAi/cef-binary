@@ -13,7 +13,7 @@
     <CefRedist64 Include="$(MSBuildThisFileDirectory)..\CEF\**\*.*" />
   </ItemGroup>
   
-  <Target Name="CefRedist64CopyResources" AfterTargets="Build">
+  <Target Name="CefTSH264Redist64CopyResources" AfterTargets="Build">
     <PropertyGroup>
       <CefRedist64TargetDir Condition="'$(CefRedist64TargetDir)' == ''">$(TargetDir)</CefRedist64TargetDir>
     </PropertyGroup>
